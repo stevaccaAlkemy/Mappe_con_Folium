@@ -267,6 +267,9 @@ def folium_map(dataframe, names, title):
     topics_html = ''.join(html_andrea(topic_names))
     string_html = """
     <style>
+        * {
+            font-family: Open Sans !important;
+        }
         .sidebar{
             position: absolute;
             top: 0;
@@ -275,7 +278,14 @@ def folium_map(dataframe, names, title):
             width: 350px;
             background: white;
             z-index: 999;
-            padding: 10px
+        }
+        
+        #maplegend {
+            background: white !important;
+            top: 5px !important;
+            left: 5px !important;
+            right: auto !important;
+            bottom: auto !important;
         }
         .disabled-marker{
             opacity: 0 !important;
@@ -283,15 +293,16 @@ def folium_map(dataframe, names, title):
         .first-row{
             display: flex;
             flex-direction: row;
-            margin-bottom: 10px;
+            margin-bottom: 5px;
         }
         .topic-value{
             flex-grow: 1;
             text-align: right;
         }
+        
         .second-row, .topic-progress{
-            height: 5px;
-            border-radius: 8px
+            height: 4px;
+            border-radius: 4px
         }
         
         .second-row{
@@ -321,6 +332,42 @@ def folium_map(dataframe, names, title):
             left: 5px;
             pointer-events: none;
         }
+        .total-tweet-section{
+            padding: 20px 20px;
+        }
+        .total-tweet-section .title{
+            font-size: 18px;
+            line-height: 22px;
+        }
+        .total-tweet-section .counter{
+            font-size: 26px;
+            line-height: 34px;
+        }
+        .total-tweet-section .source{
+            font-size: 10px;
+            line-height: 14px;
+        }
+        
+        .divider{
+            background: #F2F6F9;
+            height: 3px;
+        }
+        .topics-container{
+            padding: 20px 20px;
+        }
+        
+        .topic-name{
+            font-size: 12px;
+            line-height: 16px;
+            text-transform: uppercase;
+            font-weight: 600;
+        }
+        .topic-value{
+            font-size: 10px;
+            display: flex;
+            align-items: flex-end;
+            justify-content: flex-end;
+        }
     </style>
     <script>
         toggleTopic = (markerClass, topicColor) => {
@@ -338,10 +385,15 @@ def folium_map(dataframe, names, title):
         }
     </script>
     <div class="sidebar">
-      
+      <div class="total-tweet-section">
+        <div class="title">%s</div>
+        <div class="counter">%s</div>
+        <div class="source">%s</div>
+      </div>
+      <div class="divider"></div>
     %s
     </div>
-    """ % (topics_html)
+    """ % ("Analysis tweets", 28802, "Source: Twitter API", topics_html)
 
     print(string_html)
     m.get_root().html.add_child(folium.Element(string_html))
