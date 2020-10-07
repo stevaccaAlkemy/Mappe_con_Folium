@@ -201,7 +201,7 @@ def render_topic(topic):
 
 from random import randint
 
-def html_andrea(topic_names):
+def html_topics_container(topic_names):
     resulting_html = []
     resulting_html.append("""<div class='topics-container'>""")
     # marker_colors = ["awesome-marker-icon-red", "awesome-marker-icon-green", "awesome-marker-icon-blue"]
@@ -223,10 +223,45 @@ def html_andrea(topic_names):
     return resulting_html
 
 
+def render_topic_keywords(topic):
+    return """
+        <div id='topic-keywords-%s' class='topic-keywords'>
+            <div class='topic-name'>
+                %s
+            </div>
+            <div class='topic-count'>
+                %s
+            </div>
+            <div class='keywords'>
+                %s
+            </div>
+        </div>
+    """ % (topic["name"], topic["name"], topic["count"], topic["keywords"])
+
+
+def html_topics_keywords(topic_names):
+    resulting_html = []
+    resulting_html.append("""<div class='topics-keywords-container'>""")
+    topics = []
+    for topic in topic_names:
+        t = {
+            "name": topic,
+            "keywords": topics_keywords[topic],
+            "count": randint(0, 100)
+
+        }
+        topics.append(t)
+    for topic in topics:
+        resulting_html.append(render_topic_keywords(topic))
+
+    resulting_html.append("""</div>""")
+    return resulting_html
+
+
 def folium_map(dataframe, names, title):
     dataframe = dataframe[dataframe['latitude'].notna()]
     dataframe = dataframe[dataframe['longitude'].notna()]
-    print(dataframe.head(2))
+    # print(dataframe.head(2))
 
     attr = ("""&copy; <a href="https://stadiamaps.com/">Stadia Maps</a>, 
                 &copy; <a href="https://openmaptiles.org/">OpenMapTiles</a> &copy; <a href="http://openstreetmap.org">OpenStreetMap</a> contributors""")
@@ -243,32 +278,54 @@ def folium_map(dataframe, names, title):
 
     topic_names = list(names.keys())
     # folium.TileLayer('CartoDB dark_matter', name='darktile').add_to(m)
+    icon_circle_green = folium.plugins.BeautifyIcon(
+        icon_shape='circle-dot',
+        border_color='green',
+        border_width=1,
+    )
+    icon_circle_blue = folium.plugins.BeautifyIcon(
+        icon_shape='circle-dot',
+        border_color='darkblue',
+        border_width=1,
+    )
+    icon_circle_red = folium.plugins.BeautifyIcon(
+        icon_shape='circle-dot',
+        border_color='red',
+        border_width=1,
+    )
+
+    circle_icons = {'Covid e sbarco migranti': "red", 'Migranti: tragedie e decessi': icon_circle_green,
+             'Regolarizzazione immigrati': icon_circle_blue}
 
     for i, value in dataframe.iterrows():
         tooltip = 'Click me!'
 
         html = fancy_html(value)
         iframe = branca.element.IFrame(html=html, width=300, height=180)
-        popup = folium.Popup(iframe, parse_html=True)
+        popup = folium.Popup(iframe, parse_html=False)
 
-        folium.Marker([value.latitude, value.longitude],
+        folium.Circle((value.latitude, value.longitude),
                       popup=popup,
-                      icon=folium.Icon(color=names[f'{value.topic_label}']),
+                      color=names[value.topic_label],
+                      radius=1,
                       # icon=icon,
                       tooltip=tooltip).add_to(m)
 
-    folium.LayerControl(collapsed=False).add_to(m)
+    # folium.LayerControl(collapsed=False).add_to(m)
 
     # Add custom legend
     macro = MacroElement()
     template = define_legend(dataframe, names, topic_names, title)
     macro._template = Template(template)
 
-    topics_html = ''.join(html_andrea(topic_names))
+    topics_html = ''.join(html_topics_container(topic_names))
+    topics_keywords_html = ''.join(html_topics_keywords(topic_names))
+
     string_html = """
     <style>
         * {
-            font-family: Open Sans !important;
+            font-family: Open Sans;
+            color: #2e3c43;
         }
         .sidebar{
             position: absolute;
@@ -319,7 +376,7 @@ def folium_map(dataframe, names, title):
             opacity: 1;
             transition-property: opacity;
             transition-duration: .3s;
-            transition-delay: .2s;
+            transition-delay: 0s;
             transition-timing-function: linear;
         }
         
@@ -368,6 +425,26 @@ def folium_map(dataframe, names, title):
             align-items: flex-end;
             justify-content: flex-end;
         }
+        
+        .leaflet-bottom.leaflet-right{
+            left: 10px !important;
+            right: auto !important;
+        }
+        
+        .leaflet-bottom.leaflet-right .leaflet-control-minimap{
+            float: left !important;
+        }
+        
+        .topic-keywords{
+            padding: 0 20px;
+            margin-bottom: 15px;
+        }
+        
+        .topic-count{
+            margin: 5px 0;
+            font-size: 26px;
+            line-height: 34px;
+        }
     </style>
     <script>
         toggleTopic = (markerClass, topicColor) => {
@@ -392,13 +469,14 @@ def folium_map(dataframe, names, title):
       </div>
       <div class="divider"></div>
     %s
+    %s
     </div>
-    """ % ("Analysis tweets", 28802, "Source: Twitter API", topics_html)
+    """ % ("Analysis tweets", 28802, "Source: Twitter API", topics_html, topics_keywords_html)
 
-    print(string_html)
+    # print(string_html)
     m.get_root().html.add_child(folium.Element(string_html))
 
-    # macro._template = Template(''.join(html_andrea(topic_names)))
+    # macro._template = Template(''.join(html_topics_container(topic_names)))
 
     m.get_root().add_child(macro)
 
@@ -413,7 +491,29 @@ def folium_map(dataframe, names, title):
 
     minimap = plugins.MiniMap()
     m.add_child(minimap)
-
+    print(str(len(df)) + " cluster")
+    # mc = plugins.MarkerCluster().add_to(m)
+    # n_layer = int(len(df) / 100)
+    # total_marker = 0
+    # for j in range(n_layer):
+    #     layer = folium.map.FeatureGroup()
+    #     count = 0
+    #     for i, value in dataframe.iterrows():
+    #         tooltip = 'Click me!'
+    #         count = count + 1
+    #         html = fancy_html(value)
+    #         iframe = branca.element.IFrame(html=html, width=300, height=180)
+    #         popup = folium.Popup(iframe, parse_html=False)
+    #         folium.Marker([float(value.latitude), float(value.longitude)],
+    #                       popup=popup,
+    #                       icon=folium.Icon(color=names[f'{value.topic_label}']),
+    #                       # icon=icon,
+    #                       tooltip=tooltip).add_to(layer)
+    #         if count == 100 or total_marker == len(df) or count == len(df):
+    #             break
+    #     total_marker += count
+    #     m.add_child(layer)
+    #     print("total marker", total_marker)
     return m
 
 
@@ -434,10 +534,12 @@ if __name__ == '__main__':
 
     names = {'Covid e sbarco migranti': 'red', 'Migranti: tragedie e decessi': 'green',
              'Regolarizzazione immigrati': 'darkblue'}
+    topics_keywords = {'Covid e sbarco migranti': topic0_keywords, 'Migranti: tragedie e decessi': topic1_keywords,
+             'Regolarizzazione immigrati': topic2_keywords}
 
     df = pd.read_csv(os.path.join(os.getcwd(), 'data', 'refactored_NEW_geo_topic_7466_Immigrazione e Migranti.csv'))
     df = df.drop('Unnamed: 0', axis=1)
-    df = df[5000:5500]
+    # df = df[5000:9500]
     print(df.columns)
     print(df.latitude)
     item = 0
@@ -445,6 +547,7 @@ if __name__ == '__main__':
 
     print(len(df))
     print(df.isnull().sum(axis=0))
+
 
     map = folium_map(df, names, title_map)
     map.save(os.path.join(os.getcwd(), 'Maps', f'{title_map}.html'))
