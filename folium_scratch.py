@@ -8,6 +8,8 @@ from folium.plugins import MeasureControl
 from folium import *
 from folium.plugins import TimestampedGeoJson
 from folium import plugins
+from functools import partial
+from geopy.geocoders import Nominatim
 
 
 def define_legend(dataframe, names, topic_names, title):
@@ -40,17 +42,31 @@ def define_legend(dataframe, names, topic_names, title):
       <script src="https://code.jquery.com/ui/1.12.1/jquery-ui.js"></script>
 
       <script>
-      $( function() {
-        $( "#maplegend" ).draggable({
-                        start: function (event, ui) {
-                            $(this).css({
-                                right: "auto",
-                                top: "auto",
-                                bottom: "auto"
-                            });
-                        }
+        $( function() {
+            $( "#maplegend" ).draggable({
+                start: function (event, ui) {
+                    $(this).css({
+                        right: "auto",
+                        top: "auto",
+                        bottom: "auto"
                     });
-    });
+                }
+            });
+        });
+        toggleTopic = (markerClass, topicColor) => {
+            var elements = document.querySelectorAll(".leaflet-interactive")
+            console.log("elements", elements);
+            if(elements){
+                for(key in elements){
+                    if(elements[key] && elements[key].getAttribute && elements[key].getAttribute("stroke") == topicColor)
+                            elements[key].classList.toggle("disabled-marker");
+                }
+            }
+            var topic = document.getElementById("topic-" + topicColor);
+            if(topic){
+                topic.classList.toggle("disabled-topic");
+            } 
+        }
 
       </script>
       <style>
@@ -76,7 +92,7 @@ def define_legend(dataframe, names, topic_names, title):
         <li><span style='background:""" + topic2[0] + """;opacity:0.8;'>
         </span>""" + topic2[1] + " &#8594 " + str(topic2[2]) + """ tweet</li>
 
-        <body style="background-color: #f00">
+        <body>
 
           <fieldset><legend style="font-size:9px"><br> Tweet estratti dal 12 al 19 Giugno 2020 con chiavi <br>
           di ricerca #coronavirus OR #covid19 OR <br>#coronavirusitalia grazie all'utilizzo di Twitter API</legend></fieldset>
@@ -126,6 +142,131 @@ def define_legend(dataframe, names, topic_names, title):
         }
       .maplegend a {
         color: #777;
+        }
+    </style>
+    <style>
+        * {
+            font-family: Open Sans;
+            color: #2e3c43;
+        }
+        .sidebar{
+            position: absolute;
+            top: 0;
+            right: 0;
+            height: 100vh;
+            width: 350px;
+            background: white;
+            z-index: 999;
+        }
+        
+        #maplegend {
+            background: white !important;
+            top: 5px !important;
+            left: 5px !important;
+            right: auto !important;
+            bottom: auto !important;
+        }
+        .disabled-marker{
+            opacity: 0 !important;
+        }
+        .first-row{
+            display: flex;
+            flex-direction: row;
+            margin-bottom: 5px;
+        }
+        .topic-value{
+            flex-grow: 1;
+            text-align: right;
+        }
+        
+        .second-row, .topic-progress{
+            height: 4px;
+            border-radius: 4px
+        }
+        
+        .second-row{
+            background: #eee;
+        }
+        .topic-item{
+            margin-bottom: 10px;
+            cursor: pointer;
+        }
+        .disabled-topic{
+            opacity: 0.3;
+        }
+        
+        .leaflet-interactive{
+            opacity: 1;
+            transition-property: opacity;
+            transition-duration: .1s;
+            transition-delay: 0s;
+            transition-timing-function: linear;
+        }
+        
+        .leaflet-top.leaflet-right{
+            z-index: 888 !important;
+        }
+        
+        #map-legend{
+            top: 5px;
+            left: 5px;
+            pointer-events: none;
+        }
+        .total-tweet-section{
+            padding: 20px 20px;
+        }
+        .total-tweet-section .title{
+            font-size: 18px;
+            line-height: 22px;
+        }
+        .total-tweet-section .counter{
+            font-size: 26px;
+            line-height: 34px;
+        }
+        .total-tweet-section .source{
+            font-size: 10px;
+            line-height: 14px;
+        }
+        
+        .divider{
+            background: #F2F6F9;
+            height: 3px;
+        }
+        .topics-container{
+            padding: 20px 20px;
+        }
+        
+        .topic-name{
+            font-size: 12px;
+            line-height: 16px;
+            text-transform: uppercase;
+            font-weight: 600;
+        }
+        .topic-value{
+            font-size: 10px;
+            display: flex;
+            align-items: flex-end;
+            justify-content: flex-end;
+        }
+        
+        .leaflet-bottom.leaflet-right{
+            left: 10px !important;
+            right: auto !important;
+        }
+        
+        .leaflet-bottom.leaflet-right .leaflet-control-minimap{
+            float: left !important;
+        }
+        
+        .topic-keywords{
+            padding: 0 20px;
+            margin-bottom: 15px;
+        }
+        
+        .topic-count{
+            margin: 5px 0;
+            font-size: 26px;
+            line-height: 34px;
         }
     </style>
     {% endmacro %}"""
@@ -258,6 +399,28 @@ def html_topics_keywords(topic_names):
     return resulting_html
 
 
+
+def update_regions(string):
+    check = False
+    for i in regions:
+        refs = []
+        refs = regions[i]["refs"].split("/")
+        # print(refs)
+        for ref in refs:
+            if string.lower().find(ref) != -1:
+                # print("found")
+                check = True
+                break
+            else:
+                check = False
+        if check == True:
+            regions[i]["count"] = regions[i]["count"] + 1
+            break
+    if check == False:
+        print(string)
+        return 1
+    else:
+        return 0
 def folium_map(dataframe, names, title):
     dataframe = dataframe[dataframe['latitude'].notna()]
     dataframe = dataframe[dataframe['longitude'].notna()]
@@ -271,31 +434,13 @@ def folium_map(dataframe, names, title):
     m = folium.Map(
         tiles='CartoDB dark_matter',  # 'Cartodb Positron',
         # attr=attr,
-        zoom_start=5,
+        zoom_start=15,
         # world_copy_jump=True,
         # no_wrap=True
     )
 
     topic_names = list(names.keys())
     # folium.TileLayer('CartoDB dark_matter', name='darktile').add_to(m)
-    icon_circle_green = folium.plugins.BeautifyIcon(
-        icon_shape='circle-dot',
-        border_color='green',
-        border_width=1,
-    )
-    icon_circle_blue = folium.plugins.BeautifyIcon(
-        icon_shape='circle-dot',
-        border_color='darkblue',
-        border_width=1,
-    )
-    icon_circle_red = folium.plugins.BeautifyIcon(
-        icon_shape='circle-dot',
-        border_color='red',
-        border_width=1,
-    )
-
-    circle_icons = {'Covid e sbarco migranti': "red", 'Migranti: tragedie e decessi': icon_circle_green,
-             'Regolarizzazione immigrati': icon_circle_blue}
 
     for i, value in dataframe.iterrows():
         tooltip = 'Click me!'
@@ -307,8 +452,11 @@ def folium_map(dataframe, names, title):
         folium.Circle((value.latitude, value.longitude),
                       popup=popup,
                       color=names[value.topic_label],
-                      radius=1,
+                      fill=names[value.topic_label],
+                      radius=5,
+                      className="aaa",
                       # icon=icon,
+                      region="regione",
                       tooltip=tooltip).add_to(m)
 
     # folium.LayerControl(collapsed=False).add_to(m)
@@ -317,150 +465,22 @@ def folium_map(dataframe, names, title):
     macro = MacroElement()
     template = define_legend(dataframe, names, topic_names, title)
     macro._template = Template(template)
+    regions_array = []
+    regions_not_found = 0
 
+    for i, value in dataframe.iterrows():
+        not_found = update_regions(value.user_location)
+        regions_not_found += not_found
+
+    for key in regions:
+        if regions[key]["count"] > 0:
+            regions_array.append(regions[key])
+    print(regions_array, len(regions_array))
+    print("regions not found", regions_not_found)
     topics_html = ''.join(html_topics_container(topic_names))
     topics_keywords_html = ''.join(html_topics_keywords(topic_names))
 
     string_html = """
-    <style>
-        * {
-            font-family: Open Sans;
-            color: #2e3c43;
-        }
-        .sidebar{
-            position: absolute;
-            top: 0;
-            right: 0;
-            height: 100vh;
-            width: 350px;
-            background: white;
-            z-index: 999;
-        }
-        
-        #maplegend {
-            background: white !important;
-            top: 5px !important;
-            left: 5px !important;
-            right: auto !important;
-            bottom: auto !important;
-        }
-        .disabled-marker{
-            opacity: 0 !important;
-        }
-        .first-row{
-            display: flex;
-            flex-direction: row;
-            margin-bottom: 5px;
-        }
-        .topic-value{
-            flex-grow: 1;
-            text-align: right;
-        }
-        
-        .second-row, .topic-progress{
-            height: 4px;
-            border-radius: 4px
-        }
-        
-        .second-row{
-            background: #eee;
-        }
-        .topic-item{
-            margin-bottom: 10px;
-        }
-        .disabled-topic{
-            opacity: 0.3;
-        }
-        
-        .awesome-marker{
-            opacity: 1;
-            transition-property: opacity;
-            transition-duration: .3s;
-            transition-delay: 0s;
-            transition-timing-function: linear;
-        }
-        
-        .leaflet-top.leaflet-right{
-            z-index: 888 !important;
-        }
-        
-        #map-legend{
-            top: 5px;
-            left: 5px;
-            pointer-events: none;
-        }
-        .total-tweet-section{
-            padding: 20px 20px;
-        }
-        .total-tweet-section .title{
-            font-size: 18px;
-            line-height: 22px;
-        }
-        .total-tweet-section .counter{
-            font-size: 26px;
-            line-height: 34px;
-        }
-        .total-tweet-section .source{
-            font-size: 10px;
-            line-height: 14px;
-        }
-        
-        .divider{
-            background: #F2F6F9;
-            height: 3px;
-        }
-        .topics-container{
-            padding: 20px 20px;
-        }
-        
-        .topic-name{
-            font-size: 12px;
-            line-height: 16px;
-            text-transform: uppercase;
-            font-weight: 600;
-        }
-        .topic-value{
-            font-size: 10px;
-            display: flex;
-            align-items: flex-end;
-            justify-content: flex-end;
-        }
-        
-        .leaflet-bottom.leaflet-right{
-            left: 10px !important;
-            right: auto !important;
-        }
-        
-        .leaflet-bottom.leaflet-right .leaflet-control-minimap{
-            float: left !important;
-        }
-        
-        .topic-keywords{
-            padding: 0 20px;
-            margin-bottom: 15px;
-        }
-        
-        .topic-count{
-            margin: 5px 0;
-            font-size: 26px;
-            line-height: 34px;
-        }
-    </style>
-    <script>
-        toggleTopic = (markerClass, topicColor) => {
-            var elements = document.querySelectorAll("." + markerClass)
-            //console.log("elements", elements);
-            if(elements){
-                [].forEach.call(elements, function(el) {
-                    el.classList.toggle("disabled-marker");
-                });
-            }
-            var topic = document.getElementById("topic-" + topicColor);
-            if(topic){
-                topic.classList.toggle("disabled-topic");
-            } 
-        }
-    </script>
     <div class="sidebar">
       <div class="total-tweet-section">
         <div class="title">%s</div>
@@ -537,9 +557,125 @@ if __name__ == '__main__':
     topics_keywords = {'Covid e sbarco migranti': topic0_keywords, 'Migranti: tragedie e decessi': topic1_keywords,
              'Regolarizzazione immigrati': topic2_keywords}
 
+    regions = {
+        "abruzzo": {
+            "name": "Abruzzo",
+            "refs": "abruzzo",
+            "count": 0
+        },
+        "basilicata": {
+            "name": "Basilicata",
+            "refs": "basilicata",
+            "count": 0
+        },
+        "calabria": {
+            "name": "Calabria",
+            "refs": "calabria",
+            "count": 0
+        },
+        "campania": {
+            "name": "Campania",
+            "refs": "campania/napoli/casoria",
+            "count": 0
+        },
+        "emilia-romagna": {
+            "name": "Emilia-Romagna",
+            "refs": "emilia-romagna/emilia romagna/emilia romagn/castel bolognese/budrio/ravenna/faenza",
+            "count": 0
+        },
+        "friuli-venezia-giulia": {
+            "name": "Friuli-Venezia-Giulia",
+            "refs": "friuli-venezia-giulia",
+            "count": 0
+        },
+        "lazio": {
+            "name": "Lazio",
+            "refs": "lazio/roma/viterbo",
+            "count": 0
+        },
+        "liguria": {
+            "name": "Liguria",
+            "refs": "liguria/andora/genova",
+            "count": 0
+        },
+        "lombardia": {
+            "name": "Lombardia",
+            "refs": "lombardia/milano/rozzano/gardaland/lonate",
+            "count": 0
+        },
+        "marche": {
+            "name": "Marche",
+            "refs": "marche/piceno",
+            "count": 0
+        },
+        "molise": {
+            "name": "Molise",
+            "refs": "molise",
+            "count": 0
+        },
+        "piemonte": {
+            "name": "Piemonte",
+            "refs": "piemonte/ciriè/torino/cuneo",
+            "count": 0
+        },
+        "puglia": {
+            "name": "Puglia",
+            "refs": "puglia/bari/gallipoli",
+            "count": 0
+        },
+        "sardegna": {
+            "name": "Sardegna",
+            "refs": "sardegna/cagliari/sassari/nuoro/oristano/olbia/olbia tempio",
+            "count": 0
+        },
+        "sicilia": {
+            "name": "Sicilia",
+            "refs": "sicilia/palermo/favara",
+            "count": 0
+        },
+        "toscana": {
+            "name": "Toscana",
+            "refs": "toscana/firenze/arezzo/livorno",
+            "count": 0
+        },
+        "trentino-alto-adige": {
+            "name": "Trentino-Alto-Adige",
+            "refs": "trentino-alto-adige/trentino alto adige/trento",
+            "count": 0
+        },
+        "umbria": {
+            "name": "Umbria",
+            "refs": "umbria/perugia",
+            "count": 0
+        },
+        "valle-da-aosta": {
+            "name": "Valle D'Aosta",
+            "refs": "valle d'aosta",
+            "count": 0
+        },
+        "veneto": {
+            "name": "Veneto",
+            "refs": "veneto/venezia",
+            "count": 0
+        }
+    }
+
     df = pd.read_csv(os.path.join(os.getcwd(), 'data', 'refactored_NEW_geo_topic_7466_Immigrazione e Migranti.csv'))
     df = df.drop('Unnamed: 0', axis=1)
-    # df = df[5000:9500]
+    # df = df[5000:5100]
+
+    # geolocator = Nominatim(user_agent="prova")
+    # reverse = partial(geolocator.reverse, language="it")
+    # results = []
+    # for i, value in df.iterrows():
+    #     address = reverse("{}, {}".format(str(value["latitude"]), str(value["longitude"])))
+    #     results.append(address)
+    # df["regione"] = [str(r).split(",")[-3] for r in results]
+    # df["provincia"] = [str(r).split(",")[-4] for r in results]
+    # df["nazione"] = [str(r).split(",")[-1] for r in results]
+
+    # print(df[["regione", "user_location"]])
+
     print(df.columns)
     print(df.latitude)
     item = 0
