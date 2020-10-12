@@ -157,6 +157,7 @@ def define_legend(dataframe, names, topic_names, title):
             width: 350px;
             background: white;
             z-index: 999;
+            overflow: auto;
         }
         
         #maplegend {
@@ -267,6 +268,23 @@ def define_legend(dataframe, names, topic_names, title):
             margin: 5px 0;
             font-size: 26px;
             line-height: 34px;
+        }
+        .regions-ranking-container{
+            max-height: 300px;
+            overflow: auto;
+            padding-left: 20px;
+            padding-right: 10px;
+        }
+        
+        .regions-ranking-container .first-row{
+            display: flex;
+            flex-direction: row;
+        }
+        
+        .regions-ranking-container .region-count{
+            align-self: flex-end;
+            flex-grow: 1;
+            text-align: right;
         }
     </style>
     {% endmacro %}"""
@@ -398,29 +416,57 @@ def html_topics_keywords(topic_names):
     resulting_html.append("""</div>""")
     return resulting_html
 
+def render_region(topic):
+    return """
+        <div id='region-ranking-%s' class='region'>
+            <div class='first-row'>
+                <div class='region-name'>
+                    %s
+                </div>
+                <div class='region-count'>
+                    %s
+                </div>
+            </div>
+            <div class='second-row'>
+            </div>
+        </div>
+    """ % (topic["name"], topic["name"], topic["count"])
+
+
+def html_regions(regions):
+    resulting_html = []
+    resulting_html.append("""<div class='regions-ranking-container'>""")
+    for region in regions:
+        resulting_html.append(render_region(region))
+
+    resulting_html.append("""</div>""")
+    return resulting_html
+
 
 
 def update_regions(string):
     check = False
+    # print(string)
     for i in regions:
-        refs = []
-        refs = regions[i]["refs"].split("/")
+        # refs = []
+        # refs = regions[i]["refs"].split("/")
         # print(refs)
-        for ref in refs:
-            if string.lower().find(ref) != -1:
-                # print("found")
-                check = True
-                break
-            else:
-                check = False
-        if check == True:
+        # for ref in refs:
+        if str(string).lower().find(regions[i]["name"].lower()) != -1:
+            # print("found")
+            check = True
             regions[i]["count"] = regions[i]["count"] + 1
             break
-    if check == False:
-        print(string)
-        return 1
-    else:
+        else:
+            check = False
+            # print(str(string).lower(), regions[i]["name"].lower())
+
+    if check == True:
         return 0
+    else:
+        return 1
+
+
 def folium_map(dataframe, names, title):
     dataframe = dataframe[dataframe['latitude'].notna()]
     dataframe = dataframe[dataframe['longitude'].notna()]
@@ -469,7 +515,7 @@ def folium_map(dataframe, names, title):
     regions_not_found = 0
 
     for i, value in dataframe.iterrows():
-        not_found = update_regions(value.user_location)
+        not_found = update_regions(value.regione)
         regions_not_found += not_found
 
     for key in regions:
@@ -479,7 +525,7 @@ def folium_map(dataframe, names, title):
     print("regions not found", regions_not_found)
     topics_html = ''.join(html_topics_container(topic_names))
     topics_keywords_html = ''.join(html_topics_keywords(topic_names))
-
+    regions_html = ''.join(html_regions(regions_array))
     string_html = """
     <div class="sidebar">
       <div class="total-tweet-section">
@@ -490,8 +536,9 @@ def folium_map(dataframe, names, title):
       <div class="divider"></div>
     %s
     %s
+    %s
     </div>
-    """ % ("Analysis tweets", 28802, "Source: Twitter API", topics_html, topics_keywords_html)
+    """ % ("Analysis tweets", len(df), "Source: Twitter API", topics_html, topics_keywords_html, regions_html)
 
     # print(string_html)
     m.get_root().html.add_child(folium.Element(string_html))
@@ -552,117 +599,137 @@ if __name__ == '__main__':
                       "'straniero', 'parlamentare',  'regolarizzare', <br>" \
                       "'preferire', 'vattene', 'hotel', 'sfruttare'"
 
-    names = {'Covid e sbarco migranti': 'red', 'Migranti: tragedie e decessi': 'green',
-             'Regolarizzazione immigrati': 'darkblue'}
-    topics_keywords = {'Covid e sbarco migranti': topic0_keywords, 'Migranti: tragedie e decessi': topic1_keywords,
-             'Regolarizzazione immigrati': topic2_keywords}
+    names = {'Recovery Fund e informazione': 'red', 'Recovery Fund e investimenti': 'green',
+             'Recovery Fund e confronto politico': 'darkblue'}
+    topics_keywords = {'Recovery Fund e informazione': topic0_keywords, 'Recovery Fund e investimenti': topic1_keywords,
+             'Recovery Fund e confronto politico': topic2_keywords}
 
     regions = {
         "abruzzo": {
             "name": "Abruzzo",
-            "refs": "abruzzo",
-            "count": 0
+            "refs": "abruzzo/roseto/(cs)/popoli",
+            "count": 0,
+            "progress": 0
         },
         "basilicata": {
             "name": "Basilicata",
-            "refs": "basilicata",
-            "count": 0
+            "refs": "basilicata/matera",
+            "count": 0,
+            "progress": 0
         },
         "calabria": {
             "name": "Calabria",
-            "refs": "calabria",
-            "count": 0
+            "refs": "calabria/locri/cosenza/catanzaro",
+            "count": 0,
+            "progress": 0
         },
         "campania": {
             "name": "Campania",
-            "refs": "campania/napoli/casoria",
-            "count": 0
+            "refs": "campania/napoli/casoria/capua/campa/castellammare di stabia",
+            "count": 0,
+            "progress": 0
         },
         "emilia-romagna": {
             "name": "Emilia-Romagna",
-            "refs": "emilia-romagna/emilia romagna/emilia romagn/castel bolognese/budrio/ravenna/faenza",
-            "count": 0
+            "refs": "emilia-romagna/emilia romagna/emilia romagn/castel bolognese/budrio/ravenna/faenza/carpi/modena/emilia ro/novellara/reggio emilia/(re)/rimini/parma/bologna",
+            "count": 0,
+            "progress": 0
         },
         "friuli-venezia-giulia": {
             "name": "Friuli-Venezia-Giulia",
-            "refs": "friuli-venezia-giulia",
-            "count": 0
+            "refs": "friuli-venezia-giulia/udine/(ud)/basiliano/fontanafredda/trieste",
+            "count": 0,
+            "progress": 0
         },
         "lazio": {
             "name": "Lazio",
-            "refs": "lazio/roma/viterbo",
-            "count": 0
+            "refs": "lazio/roma/viterbo/fiuggi/rome",
+            "count": 0,
+            "progress": 0
         },
         "liguria": {
             "name": "Liguria",
-            "refs": "liguria/andora/genova",
-            "count": 0
+            "refs": "liguria/andora/genova/santa margherita ligure/savona/sanremo",
+            "count": 0,
+            "progress": 0
         },
         "lombardia": {
             "name": "Lombardia",
-            "refs": "lombardia/milano/rozzano/gardaland/lonate",
-            "count": 0
+            "refs": "lombardia/milano/rozzano/gardaland/lonate/castiraga vidardo/adro/voghera/(mi)/limito di pioltello/sondrio/legnano/mantova/varese/milan/pavia/bergamo/monza",
+            "count": 0,
+            "progress": 0
         },
         "marche": {
             "name": "Marche",
-            "refs": "marche/piceno",
-            "count": 0
+            "refs": "marche/piceno/pesaro/ancona",
+            "count": 0,
+            "progress": 0
         },
         "molise": {
             "name": "Molise",
-            "refs": "molise",
-            "count": 0
+            "refs": "molise/termoli",
+            "count": 0,
+            "progress": 0
         },
         "piemonte": {
             "name": "Piemonte",
-            "refs": "piemonte/ciriè/torino/cuneo",
-            "count": 0
+            "refs": "piemonte/ciriè/torino/cuneo/turin",
+            "count": 0,
+            "progress": 0
         },
         "puglia": {
             "name": "Puglia",
-            "refs": "puglia/bari/gallipoli",
-            "count": 0
+            "refs": "puglia/bari/gallipoli/san vito dei normanni/foggia/corato/(ba)/taranto",
+            "count": 0,
+            "progress": 0
         },
         "sardegna": {
             "name": "Sardegna",
             "refs": "sardegna/cagliari/sassari/nuoro/oristano/olbia/olbia tempio",
-            "count": 0
+            "count": 0,
+            "progress": 0
         },
         "sicilia": {
             "name": "Sicilia",
-            "refs": "sicilia/palermo/favara",
-            "count": 0
+            "refs": "sicilia/palermo/favara/catania/messina/trapani/siracusa",
+            "count": 0,
+            "progress": 0
         },
         "toscana": {
             "name": "Toscana",
-            "refs": "toscana/firenze/arezzo/livorno",
-            "count": 0
+            "refs": "toscana/firenze/arezzo/livorno/scandicci/pistoia/siena/prato/pisa",
+            "count": 0,
+            "progress": 0
         },
         "trentino-alto-adige": {
             "name": "Trentino-Alto-Adige",
-            "refs": "trentino-alto-adige/trentino alto adige/trento",
-            "count": 0
+            "refs": "trentino-alto-adige/trentino alto adige/trento/trentino-alto adige/alto adige",
+            "count": 0,
+            "progress": 0
         },
         "umbria": {
             "name": "Umbria",
-            "refs": "umbria/perugia",
-            "count": 0
+            "refs": "umbria/perugia/terni/todi",
+            "count": 0,
+            "progress": 0
         },
-        "valle-da-aosta": {
+        "valle-d-aosta": {
             "name": "Valle D'Aosta",
-            "refs": "valle d'aosta",
-            "count": 0
+            "refs": "valle d'aosta/aosta/sarre",
+            "count": 0,
+            "progress": 0
         },
         "veneto": {
             "name": "Veneto",
-            "refs": "veneto/venezia",
-            "count": 0
+            "refs": "veneto/venezia/rovigo/spilimbergo/asiago/cortina d'ampezzo/(belluno)/vicenza/bassano/padova",
+            "count": 0,
+            "progress": 0
         }
     }
 
     df = pd.read_csv(os.path.join(os.getcwd(), 'data', 'refactored_NEW_geo_topic_7466_Immigrazione e Migranti.csv'))
     df = df.drop('Unnamed: 0', axis=1)
-    # df = df[5000:5100]
+    df = df[5000:5100]
 
     # geolocator = Nominatim(user_agent="prova")
     # reverse = partial(geolocator.reverse, language="it")
